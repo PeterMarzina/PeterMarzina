@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tetris</title>
+    <style>
+        /* CSS for the game */
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #222;
+            margin: 0;
+            font-family: Arial, sans-serif;
+        }
+
+        canvas {
+            border: 2px solid #fff;
+            background-color: #111;
+            display: block;
+        }
+
+        h1 {
+            color: #fff;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div>
+        <h1>Tetris</h1>
+        <canvas id="tetris" width="300" height="600"></canvas>
+    </div>
+    <script>
+        // JavaScript for Tetris
+        const canvas = document.getElementById("tetris");
+        const context = canvas.getContext("2d");
+        const scale = 30; // Size of one grid square
+
+        context.scale(scale, scale);
+
+        // Shapes and colors
+        const SHAPES = [
+            [], // No shape (index 0)
+            [[0, 0, 0, 0], // I-shape
+             [1, 1, 1, 1],
+             [0, 0, 0, 0],
+             [0, 0, 0, 0]],
+            [[1, 1], // O-shape
+             [1, 1]],
+            [[0, 1, 0], // T-shape
+             [1, 1, 1],
+             [0, 0, 0]],
+            [[0, 1, 1], // S-shape
+             [1, 1, 0],
+             [0, 0, 0]],
+            [[1, 1, 0], // Z-shape
+             [0, 1, 1],
+             [0, 0, 0]],
+            [[1, 0, 0], // L-shape
+             [1, 1, 1],
+             [0, 0, 0]],
+            [[0, 0, 1], // J-shape
+             [1, 1, 1],
+             [0, 0, 0]],
+        ];
+
+        const COLORS = [null, "cyan", "yellow", "purple", "green", "red", "orange", "blue"];
+
+        // Create the arena (game field)
+        function createMatrix(w, h) {
+            const matrix = [];
+            while (h--) {
+                matrix.push(new Array(w).fill(0));
+            }
+            return matrix;
+        }
+
+        // Collide function: check if the piece hits the walls or floor
+        function collide(arena, player) {
+            const [m, o] = [player.matrix, player.pos];
+            for (let y = 0; y < m.length; y++) {
+                for (let x = 0; x < m[y].length; x++) {
+                    if (m[y][x] !== 0 &&
+                        (arena[y + o.y] &&
+                         arena[y + o.y][x + o.x]) !== 0) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        // Merge piece into arena
+        function merge(arena, player) {
+            player.matrix.forEach((row, y) => {
+                row.forEach((value, x) => {
+                    if (value !== 0) {
+                        arena[y + player.pos.y][x + player.pos.x] = value;
+                    }
+                });
+            });
+        }
+
+        // Rotate a matrix
+        function rotate(matrix, dir) {
+            for (let y = 0; y < matrix.length; y++) {
+                for (let x = 0; x < y; x++) {
+                    [matrix[x][y], matrix[y][x]] = [matrix[y][x], matrix[x][y]];
+                }
+            }
+            if (dir > 0) {
+                matrix.forEach(row => row.reverse());
+            } else {
+                matrix.reverse();
+            }
+        }
+
+        // Clear completed rows
+        function sweep() {
+            outer: for (let y = arena.length - 1; y >= 0; y--) {
+                for (let x = 0; x < arena[y].length; x++) {
+                    if (arena[y][x] === 0) continue outer;
+                }
+                arena.splice(y, 1);
+                arena.unshift(new Array(arena[0].length).fill(0));
+            }
+        }
+
+        // Draw a matrix
+        function drawMatrix(matrix, offset) {
+            matrix.forEach((row, y) => {
+                row.forEach((value, x) => {
+                    if (value !== 0) {
+                        context.fillStyle = COLORS[value];
+                        context.fillRect(x + offset.x, y + offset.y, 1, 1);
+                    }
+                });
+            });
+        }
+
+        // Draw the game
+        function draw() {
+            context.fillStyle = "#111";
+            context.fillRect(0, 0, canvas.width, canvas.height);
+
+            drawMatrix(arena, {x: 0, y: 0});
+            drawMatrix(player.matrix, player.pos);
+        }
+
+        // Drop the piece
+        function drop() {
+            player.pos.y++;
+            if (collide(arena, player)) {
+                player.pos.y--;
+                merge(arena, player);
+                playerReset();
+                sweep();
+            }
+            dropCounter = 0;
+        }
+
+        function playerReset() {
+            const pieces = "IJLOSTZ";
+            player.matrix = SHAPES[pieces.indexOf(pieces[Math.floor(Math.random() * pieces.length)]) + 1];
+            player.pos.y = 0;
+            player.pos.x = Math.floor(arena[0].length / 2) - Math.floor(player.matrix[0].length / 2);
+            if (collide(arena, player)) {
+                arena.forEach(row => row.fill(0));
+                alert("Game Over!");
+            }
+        }
+
+        // Update the game
+        let dropCounter = 0;
+        let dropInterval = 1000;
+        let lastTime = 0;
+
+        function update(time = 0) {
+            const deltaTime = time - lastTime;
+            lastTime = time;
+            dropCounter += deltaTime;
+            if (dropCounter > dropInterval) {
+                drop();
+            }
+            draw();
+            requestAnimationFrame(update);
+        }
+
+        // Player controls
+        document.addEventListener("keydown", event => {
+            if (event.key === "ArrowLeft") {
+                player.pos.x--;
+                if (collide(arena, player)) player.pos.x++;
+            } else if (event.key === "ArrowRight") {
+                player.pos.x++;
+                if (collide(arena, player)) player.pos.x--;
+            } else if (event.key === "ArrowDown") {
+                drop();
+            } else if (event.key === "ArrowUp") {
+                rotate(player.matrix, 1);
+                if (collide(arena, player)) rotate(player.matrix, -1);
+            }
+        });
+
+        const arena = createMatrix(10, 20);
+        const player = {
+            pos: {x: 0, y: 0},
+            matrix: null,
+        };
+
+        playerReset();
+        update();
+    </script>
+</body>
+</html>
